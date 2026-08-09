@@ -22,6 +22,7 @@ import yaml
 from capture import capture_loop
 from transcribe import transcribe_chunk
 from detect import find_hits
+from extract import extract_fields
 
 
 def load_config(path: str) -> dict:
@@ -29,17 +30,19 @@ def load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def log_hit(log_path: str, station: str, hits: list, transcript: str):
+def log_hit(log_path: str, station: str, hits: list, transcript: str, extracted: dict = None):
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "station": station,
         "hits": hits,
         "transcript": transcript,
+        "extracted": extracted,
     }
     with open(log_path, "a") as f:
         f.write(json.dumps(entry) + "\n")
-    print(f"[HIT] {station} — {hits} — {transcript[:120]}")
+    summary = extracted.get("prize") if extracted and "error" not in extracted else None
+    print(f"[HIT] {station} — {hits} — {summary or transcript[:120]}")
 
 
 def monitor_station(station_cfg: dict, cfg: dict):
@@ -70,7 +73,10 @@ def monitor_station(station_cfg: dict, cfg: dict):
 
         hits = find_hits(transcript, keywords, regex_patterns)
         if hits:
-            log_hit(log_path, name, hits, transcript)
+            extracted = None
+            if cfg.get("extraction", {}).get("enabled"):
+                extracted = extract_fields(transcript, cfg["extraction"])
+            log_hit(log_path, name, hits, transcript, extracted)
 
 
 def main():

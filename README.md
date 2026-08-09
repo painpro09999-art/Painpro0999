@@ -68,12 +68,34 @@ Common streaming backends you'll run into (each has the same basic
 extraction process above): AmperWave, SecureNet Systems, StreamTheWorld,
 iHeartRadio, TuneIn.
 
-### 4. Configure stations and keywords
+### 4. (Optional) Set up structured extraction
+
+When a keyword hit fires, the tool can pass that transcript chunk to a
+small local LLM (via [Ollama](https://ollama.com)) to pull out
+structured fields — sponsor, prize, entry method, contact info,
+deadline — instead of just logging the raw transcript text.
+
+```bash
+# install Ollama, then pull a small model
+ollama pull qwen2.5:1.5b
+```
+
+This only runs when a hit is detected, so it's an occasional call, not
+continuous load — it doesn't compete with Whisper's constant
+transcription for resources. Disable it by setting `extraction.enabled:
+false` in `config.yaml` if you'd rather just log raw transcripts.
+
+Model choice matters for reliability: `tinyllama` is small and fast but
+prone to inconsistent JSON output; `qwen2.5:1.5b` or `phi` tend to
+follow the structured-output instructions more reliably. Worth testing
+a few real hits against each before settling on one.
+
+### 5. Configure stations and keywords
 
 Edit `config.yaml` — replace each `REPLACE_WITH_DIRECT_STREAM_URL` with
 the URL you found above, and adjust the keyword/regex lists to taste.
 
-### 5. Run it
+### 6. Run it
 
 ```bash
 python main.py
@@ -91,8 +113,12 @@ confirmed, remove the WCPE entry and the `"music"` test keyword from
 Hits are appended to `logs/hits.jsonl`, one JSON object per line:
 
 ```json
-{"timestamp": "2026-08-06T15:04:00+00:00", "station": "WFEA 1370 AM", "hits": ["text to win"], "transcript": "...text WIN to 55555 for your chance..."}
+{"timestamp": "2026-08-08T15:04:00+00:00", "station": "WFEA 1370 AM", "hits": ["text to win"], "transcript": "...text WIN to 55555 for your chance...", "extracted": {"sponsor": "WFEA", "prize": "concert tickets", "prize_amount": null, "entry_method": "text", "contact_info": "55555", "deadline": null}}
 ```
+
+If extraction is disabled or fails on a given hit, `"extracted"` will
+be `null` or contain an `"error"` field — the raw transcript is always
+logged regardless, so a bad extraction never means losing the hit.
 
 ---
 
